@@ -4,12 +4,20 @@
     {
       "src": "api/claude.js",
       "use": "@vercel/node"
+    },
+    {
+      "src": "*.html",
+      "use": "@vercel/static"
     }
   ],
   "routes": [
     {
       "src": "/api/claude",
       "dest": "/api/claude.js"
+    },
+    {
+      "src": "/",
+      "dest": "/split_bill_v1.html"
     },
     {
       "src": "/(.*)",
