@@ -1140,12 +1140,16 @@ function buildResult(){
   const n=getPeople();
   const tabsEl=document.getElementById('result-person-tabs');tabsEl.innerHTML='';
   personNames.forEach((name,i)=>{const tab=document.createElement('button');tab.className='p-tab'+(i===selectedPersonIdx?' active':'');tab.onclick=()=>{selectedPersonIdx=i;buildResult();};tab.innerHTML=`<div class="p-tab-dot" style="background:${getColor(i)};">${getEmoji(i)}</div><span class="p-tab-name">${escHtml(name)}</span>`;tabsEl.appendChild(tab);});
-  const pi=selectedPersonIdx;const pName=personNames[pi]||('P'+(pi+1));const pTotal=Math.ceil(personTotals[pi]);
+  const pi=selectedPersonIdx;const pName=personNames[pi]||('P'+(pi+1));
+  // Fix floating point: treat anything under 1 as 0
+  const pTotal=personTotals[pi]<1?0:Math.ceil(personTotals[pi]);
+
   document.getElementById('result-person-label').textContent=pName+"'s share";
   document.getElementById('result-per').textContent=fmtRp(pTotal);
   document.getElementById('result-sub').textContent=`of ${fmtRp(grandTotal)} · ${n} people`;
   document.getElementById('bd-person-name').textContent=pName+"'s items";
   document.getElementById('bd-total-lbl').textContent=fmtRp(pTotal);
+
   const rows=document.getElementById('breakdown-rows');rows.innerHTML='';
   const addRow=(name,amt,cls='')=>{const r=document.createElement('div');r.className='bk-row '+cls;r.innerHTML=`<span class="bk-name">${name}</span><span class="bk-amt">${amt}</span>`;rows.appendChild(r);};
   const addSH=(l)=>{const h=document.createElement('div');h.className='bk-section-head';h.textContent=l;rows.appendChild(h);};
@@ -1156,23 +1160,44 @@ function buildResult(){
   if(excItems.length){addSH('Your items');excItems.forEach(it=>{addRow(`${escHtml(it.name||'—')}${it.qty>1?' ×'+it.qty:''}`,fmtRp(getItemLineTotal(it)));hasRows=true;});}
   if(groupItems.length){addSH('Shared with group');groupItems.forEach(it=>{const a=it.assignedTo.filter(x=>x<n);const share=getItemLineTotal(it)/a.length;const names=a.map(x=>personNames[x]||('P'+(x+1))).join(', ');addRow(`${escHtml(it.name||'—')}${it.qty>1?' ×'+it.qty:''}<br><span style="font-size:10.5px;color:var(--muted);font-weight:400;">with ${names}</span>`,fmtRp(share));hasRows=true;});}
   if(sharedItems.length){addSH('Split evenly (all '+n+')');sharedItems.forEach(it=>{const share=getItemLineTotal(it)/n;addRow(`${escHtml(it.name||'—')}${it.qty>1?' ×'+it.qty:''}`,fmtRp(share),'shared-r');hasRows=true;});}
-  if(!hasRows)addRow('No items assigned','—','sec');
+  if(!hasRows)addRow('No items assigned to '+pName,'—','sec');
   const ratio=rawSubtotal>0?personSubtotals[pi]/rawSubtotal:1/n;
   addRow('Person subtotal',fmtRp(personSubtotals[pi]),'sec');
   if(discount>0)addRow('Discount share','− '+fmtRp(discount*ratio),'disc');
   if(!taxIncluded&&taxAmt>0)addRow('Tax share','+ '+fmtRp(taxAmt*ratio),'tax-r');
   addRow(pName+' pays',fmtRp(pTotal),'final');
+
   // Slot badge
   const slotBadge=document.getElementById('qris-slot-badge');slotBadge.innerHTML='';
   const assignedSlot=getQRISSlotForPerson(pi);
-  if(assignedSlot){slotBadge.innerHTML=`<div class="qris-slot-tag" style="background:rgba(0,200,150,0.2);color:#00C896;border:1px solid rgba(0,200,150,0.3);">🔳 ${escHtml(assignedSlot.label)} (MDR-free)</div>`;}
+  if(assignedSlot&&pTotal>0){slotBadge.innerHTML=`<div class="qris-slot-tag" style="background:rgba(0,200,150,0.2);color:#00C896;border:1px solid rgba(0,200,150,0.3);">🔳 ${escHtml(assignedSlot.label)} (MDR-free)</div>`;}
   const routingInfo=document.getElementById('qris-routing-info');
-  if(assignedSlot){routingInfo.style.display='';routingInfo.textContent=`Free remaining on this QRIS: ${fmtRp(Math.max(0,MDR_LIMIT-(assignedSlot.dailyUsed||0)-pTotal))}`;}
+  if(assignedSlot&&pTotal>0){routingInfo.style.display='';routingInfo.textContent=`Free remaining on this QRIS: ${fmtRp(Math.max(0,MDR_LIMIT-(assignedSlot.dailyUsed||0)-pTotal))}`;}
   else routingInfo.style.display='none';
-  // QR
+
+  // QR Code — show "nothing to pay" if pTotal is 0
   const qrDiv=document.getElementById('qr-container');qrDiv.innerHTML='';
-  try{const qrisStr=getQRISForPerson(pi);const qrData=(qrisStr&&isValidQRIS(qrisStr))?modifyQRISAmount(qrisStr,pTotal):`SPLITPAY|${pName}|${Math.round(pTotal)}|${Date.now()}`;new QRCode(qrDiv,{text:qrData,width:190,height:190,colorDark:'#0F0E17',colorLight:'#FFFFFF',correctLevel:QRCode.CorrectLevel.M});}
-  catch(e){qrDiv.innerHTML='<div style="padding:18px;color:#aaa;font-size:12px;text-align:center;">⚠ QR error</div>';}
+  const qrWrap=document.getElementById('qr-wrap');
+
+  if(pTotal<=0){
+    // Nothing to pay — show celebration state
+    document.getElementById('result-per').textContent='Rp 0';
+    document.getElementById('result-sub').textContent='Nothing to pay! 🎉';
+    qrWrap.style.display='none';
+    document.getElementById('result-person-label').textContent=pName+" · all paid by others";
+    qrDiv.innerHTML='';
+    // Show a fun "free" badge instead
+    slotBadge.innerHTML=`<div class="qris-slot-tag" style="background:rgba(0,200,150,0.2);color:#00C896;border:1px solid rgba(0,200,150,0.3);font-size:13px;padding:6px 16px;">🎉 Nothing to pay!</div>`;
+    document.getElementById('btn-share').style.display='none';
+  } else {
+    qrWrap.style.display='';
+    document.getElementById('btn-share').style.display='';
+    try{
+      const qrisStr=getQRISForPerson(pi);
+      const qrData=(qrisStr&&isValidQRIS(qrisStr))?modifyQRISAmount(qrisStr,pTotal):`SPLITPAY|${pName}|${Math.round(pTotal)}|${Date.now()}`;
+      new QRCode(qrDiv,{text:qrData,width:190,height:190,colorDark:'#0F0E17',colorLight:'#FFFFFF',correctLevel:QRCode.CorrectLevel.M});
+    }catch(e){qrDiv.innerHTML='<div style="padding:18px;color:#aaa;font-size:12px;text-align:center;">⚠ QR error</div>';}
+  }
 }
 
 // Share receipt (canvas image)
