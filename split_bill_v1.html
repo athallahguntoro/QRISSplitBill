@@ -804,38 +804,61 @@ async function qxHandleFile(input) {
         </div>
       </div>`;
 
-    showQxStatus('scanning','🔍 Decoding QR code…');
+    showQxStatus('scanning','Step 1/2 — Scanning pixels locally…', 20);
     document.getElementById('qx-result-panel').style.display='none';
-
+    await sleep(60);
     try {
-      // Step 1: jsQR pixel decode
       const raw = await decodeQRWithJsQR(imgSrc);
       if(raw && isValidQRIS(raw)) {
-        showQxStatus('success','✓ QR decoded successfully!');
+        showQxStatus('success','✓ QR decoded instantly!', 100);
         renderQxResult(raw, imgSrc);
         return;
       }
-      // Step 2: Claude AI fallback
-      showQxStatus('scanning','🤖 Trying AI decode…');
-      const ai = await extractQrisFromImageAI(b64, mime);
-      if(ai && isValidQRIS(ai)) {
-        showQxStatus('success','✓ QRIS extracted via AI!');
-        renderQxResult(ai, imgSrc);
-      } else if(raw) {
-        // Non-QRIS QR code
-        showQxStatus('success','✓ QR decoded (not a QRIS)');
+      if(raw) {
+        showQxStatus('success','✓ QR decoded (not a QRIS)', 100);
         renderRawQR(raw);
-      } else {
-        showQxStatus('error','⚠ Could not decode. Try a clearer/cropped image.');
+        return;
       }
-    } catch(err) { showQxStatus('error','⚠ Decode failed: '+err.message); }
+      // AI fallback with live countdown
+      showQxStatus('scanning','Step 2/2 — Sending to AI (up to 15s)…', 30);
+      let elapsed=0;
+      const countdownTimer=setInterval(()=>{
+        elapsed++;
+        const pct=Math.min(88,30+(elapsed/15)*58);
+        const remaining=Math.max(0,15-elapsed);
+        showQxStatus('scanning',`Step 2/2 — AI decoding… ${remaining}s remaining`, Math.round(pct));
+        if(elapsed>=15) clearInterval(countdownTimer);
+      },1000);
+
+      const ai = await Promise.race([
+        extractQrisFromImageAI(b64, mime),
+        new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout')),15000))
+      ]);
+      clearInterval(countdownTimer);
+
+      if(ai && isValidQRIS(ai)) {
+        showQxStatus('success','✓ QRIS extracted via AI!', 100);
+        renderQxResult(ai, imgSrc);
+      } else {
+        showQxStatus('error','⚠ Could not decode. Try: crop closer to the QR code or use a higher-res image.');
+      }
+    } catch(err) {
+      if(err.message==='timeout'){
+        showQxStatus('error','⏱ Timed out after 15s. Try a cleaner, cropped image of just the QR code.');
+      } else {
+        showQxStatus('error','⚠ Failed: '+err.message);
+      }
+    }
   };
   reader.readAsDataURL(file);
 }
 
-function showQxStatus(type, msg) {
-  const sp = type==='scanning' ? '<div class="qx-spinner"></div>' : '';
-  document.getElementById('qx-status-box').innerHTML = `<div class="qx-status ${type}">${sp}<span>${msg}</span></div>`;
+function showQxStatus(type, msg, progress=null) {
+  const sp = type==='scanning'?'<div class="qx-spinner"></div>':
+             type==='success' ?'<span style="font-size:15px;">✅</span>':
+             type==='error'   ?'<span style="font-size:15px;">⚠️</span>':'';
+  const bar = progress!==null ? `<div style="width:100%;height:4px;background:rgba(124,58,237,0.12);border-radius:2px;margin-top:7px;overflow:hidden;"><div style="height:100%;width:${progress}%;background:${type==='success'?'#00C896':type==='error'?'#ff8877':'#a78bfa'};border-radius:2px;transition:width 0.5s ease;"></div></div>` : '';
+  document.getElementById('qx-status-box').innerHTML=`<div class="qx-status ${type}"><div style="display:flex;align-items:center;gap:9px;width:100%;">${sp}<span style="flex:1;font-size:12.5px;">${msg}</span></div>${bar}</div>`;
 }
 
 function renderQxResult(qrisStr, imgSrc) {
@@ -1007,21 +1030,65 @@ async function handleQrisImage(input){
     const ni=document.createElement('input');ni.type='file';ni.accept='image/*';
     ni.style.cssText='position:absolute;inset:0;opacity:0;width:100%;height:100%;cursor:pointer;';
     ni.onchange=function(){handleQrisImage(this);};zone.appendChild(ni);
-    showQrisScanStatus('scanning','🔍 Decoding QR code…');
+
+    // Step 1: jsQR pixel decode (fast, local)
+    showQrisScanStatus('scanning','Step 1/2 — Scanning pixels locally…', 20);
+    await sleep(60);
     try{
       const r=await decodeQRWithJsQR(imgSrc);
-      if(r&&isValidQRIS(r)){setQrisString(r);showQrisScanStatus('success','✓ QRIS decoded!');return;}
-      showQrisScanStatus('scanning','🤖 AI fallback…');
-      const ai=await extractQrisFromImageAI(b64,mime);
-      if(ai&&isValidQRIS(ai)){setQrisString(ai);showQrisScanStatus('success','✓ QRIS extracted via AI!');}
-      else showQrisScanStatus('error','⚠ Could not decode. Try Paste tab.');
-    }catch(err){showQrisScanStatus('error','⚠ Decode failed.');}
+      if(r&&isValidQRIS(r)){
+        setQrisString(r);
+        showQrisScanStatus('success','✓ QRIS decoded instantly!', 100);
+        return;
+      }
+      if(r){
+        showQrisScanStatus('error','⚠ QR code found but not a valid QRIS format.');
+        return;
+      }
+      // Step 2: AI fallback with live countdown
+      showQrisScanStatus('scanning','Step 2/2 — Sending to AI (up to 15s)…', 30);
+      let elapsed=0;
+      const countdownTimer=setInterval(()=>{
+        elapsed++;
+        const pct=Math.min(88, 30+(elapsed/15)*58);
+        const remaining=Math.max(0,15-elapsed);
+        showQrisScanStatus('scanning',`Step 2/2 — AI decoding… ${remaining}s remaining`, Math.round(pct));
+        if(elapsed>=15) clearInterval(countdownTimer);
+      },1000);
+
+      const ai=await Promise.race([
+        extractQrisFromImageAI(b64,mime),
+        new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout')),15000))
+      ]);
+      clearInterval(countdownTimer);
+
+      if(ai&&isValidQRIS(ai)){
+        setQrisString(ai);
+        showQrisScanStatus('success','✓ QRIS extracted via AI!', 100);
+      } else {
+        showQrisScanStatus('error','⚠ Could not decode. Try: crop to just the QR code, better lighting, or use Paste tab.');
+      }
+    }catch(err){
+      if(err.message==='timeout'){
+        showQrisScanStatus('error','⏱ Timed out after 15s. Crop closer to the QR code or paste the string manually.');
+      } else {
+        showQrisScanStatus('error','⚠ Failed: '+err.message+'. Use the Paste tab instead.');
+      }
+    }
   };
   reader.readAsDataURL(file);
 }
 function decodeQRWithJsQR(imgSrc){return new Promise((resolve)=>{const img=new Image();img.onload=()=>{for(const size of[img.width,800,1200,600]){const scale=size/Math.max(img.width,img.height);const w=Math.round(img.width*scale),h=Math.round(img.height*scale);const cv=document.createElement('canvas');cv.width=w;cv.height=h;const ctx=cv.getContext('2d');ctx.imageSmoothingEnabled=false;ctx.drawImage(img,0,0,w,h);const code=jsQR(ctx.getImageData(0,0,w,h).data,w,h,{inversionAttempts:'attemptBoth'});if(code?.data){resolve(code.data.trim());return;}}const cv2=document.createElement('canvas');cv2.width=img.width;cv2.height=img.height;const ctx2=cv2.getContext('2d');ctx2.filter='contrast(150%) grayscale(100%)';ctx2.drawImage(img,0,0);const code2=jsQR(ctx2.getImageData(0,0,img.width,img.height).data,img.width,img.height,{inversionAttempts:'attemptBoth'});resolve(code2?code2.data.trim():null);};img.onerror=()=>resolve(null);img.src=imgSrc;});}
 function setQrisString(str){document.getElementById('qris-input').value=str;validateQRIS();}
-function showQrisScanStatus(type,msg){const sp=type==='scanning'?'<div class="ocr-spinner"></div>':'';document.getElementById('qris-scan-status-box').innerHTML=`<div class="qris-scan-status ${type}">${sp}<span>${msg}</span></div>`;}
+function showQrisScanStatus(type, msg, progress=null){
+  const sp = type==='scanning'?'<div class="ocr-spinner"></div>':
+             type==='success' ?'<span style="font-size:15px;">✅</span>':
+             type==='error'   ?'<span style="font-size:15px;">⚠️</span>':'';
+  const bar = progress!==null ? `<div style="width:100%;height:4px;background:rgba(0,0,0,0.08);border-radius:2px;margin-top:7px;overflow:hidden;"><div style="height:100%;width:${progress}%;background:${type==='success'?'#00C896':type==='error'?'#ff8877':'var(--amber)'};border-radius:2px;transition:width 0.5s ease;"></div></div>` : '';
+  document.getElementById('qris-scan-status-box').innerHTML=`<div class="qris-scan-status ${type}"><div style="display:flex;align-items:center;gap:9px;width:100%;">${sp}<span style="flex:1;font-size:12.5px;">${msg}</span></div>${bar}</div>`;
+}
+async function extractQrisFromImageAI(b64,mime){const resp=await fetch('/api/claude',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:500,messages:[{role:'user',content:[{type:'image',source:{type:'base64',media_type:mime,data:b64}},{type:'text',text:'Decode this QRIS QR code. Return ONLY the raw data string starting with "000201". No explanation. If cannot decode, return CANNOT_READ'}]}]})});const data=await resp.json();if(data.error)throw new Error(data.error.message);const text=(data.content||[]).map(b=>b.text||'').join('').trim().replace(/\s+/g,'');return(text==='CANNOT_READ'||!text)?null:text;}
+function sleep(ms){return new Promise(r=>setTimeout(r,ms));}
 async function extractQrisFromImageAI(b64,mime){const resp=await fetch('/api/claude',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:500,messages:[{role:'user',content:[{type:'image',source:{type:'base64',media_type:mime,data:b64}},{type:'text',text:'Decode this QRIS QR code. Return ONLY the raw data string starting with "000201". No explanation. If cannot decode, return CANNOT_READ'}]}]})});const data=await resp.json();if(data.error)throw new Error(data.error.message);const text=(data.content||[]).map(b=>b.text||'').join('').trim().replace(/\s+/g,'');return(text==='CANNOT_READ'||!text)?null:text;}
 
 // Receipt OCR
