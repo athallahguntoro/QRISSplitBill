@@ -8,7 +8,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800;900&family=DM+Sans:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js"></script>
-<script src="config.js"></script>
+
 <style>
 /* ════════════════════════════════════════
    SUPER APP SHELL
@@ -146,6 +146,25 @@ textarea{resize:none;font-size:11.5px;font-family:monospace;min-height:72px;line
 .upload-icon{font-size:38px;margin-bottom:9px;}
 .upload-title{font-family:'Syne',sans-serif;font-weight:800;font-size:16px;margin-bottom:3px;}
 .upload-sub{font-size:12px;color:var(--muted);}
+
+/* Receipt dual-action upload */
+.upload-zone-wrapper{margin-bottom:0;}
+.receipt-btn-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+.receipt-action-btn{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:20px 12px;border-radius:16px;cursor:pointer;transition:all 0.18s;-webkit-tap-highlight-color:transparent;border:2px solid var(--border);background:var(--surface);}
+.receipt-action-btn:hover,.receipt-action-btn:active{transform:scale(0.97);}
+.camera-btn{border-color:rgba(255,87,51,0.3);background:rgba(255,87,51,0.05);}
+.camera-btn:hover{border-color:var(--coral);background:rgba(255,87,51,0.1);}
+.gallery-btn{border-color:rgba(59,130,246,0.3);background:rgba(59,130,246,0.05);}
+.gallery-btn:hover{border-color:var(--blue);background:rgba(59,130,246,0.1);}
+.receipt-action-icon{font-size:34px;line-height:1;}
+.receipt-action-title{font-family:'Syne',sans-serif;font-weight:800;font-size:14px;color:var(--ink);}
+.receipt-action-sub{font-size:11px;color:var(--muted);}
+.receipt-preview-wrap{position:relative;border-radius:14px;overflow:hidden;margin-bottom:10px;}
+.receipt-preview-wrap img{width:100%;border-radius:14px;max-height:260px;object-fit:cover;display:block;}
+.receipt-change-btn{position:absolute;bottom:8px;right:8px;display:flex;gap:6px;}
+.receipt-change-btn label{display:flex;align-items:center;gap:5px;padding:7px 12px;border-radius:10px;font-family:'DM Sans',sans-serif;font-size:12px;font-weight:600;cursor:pointer;-webkit-tap-highlight-color:transparent;border:none;}
+.receipt-change-btn .cam-lbl{background:rgba(255,87,51,0.9);color:white;}
+.receipt-change-btn .gal-lbl{background:rgba(15,14,23,0.75);color:white;}
 .preview-img{width:100%;border-radius:14px;max-height:240px;object-fit:cover;display:block;margin-bottom:9px;}
 .qris-preview-wrap{display:flex;align-items:center;gap:12px;padding:4px 0 8px;}
 .qris-preview-thumb{width:64px;height:64px;border-radius:11px;object-fit:cover;flex-shrink:0;border:2px solid var(--border);}
@@ -478,11 +497,22 @@ textarea{resize:none;font-size:11.5px;font-family:monospace;min-height:72px;line
     <div class="step-sub">AI reads items, discounts, and detects tax automatically.</div>
     <div class="card">
       <div class="card-label">Receipt Photo</div>
-      <div class="upload-zone" id="upload-zone">
-        <input type="file" id="receipt-file" accept="image/*" capture="environment" onchange="handleFile(this)">
-        <div class="upload-icon">📷</div>
-        <div class="upload-title">Tap to photograph</div>
-        <div class="upload-sub">Any angle — AI handles the rest</div>
+      <div id="upload-zone" class="upload-zone-wrapper">
+        <!-- Default state: two action buttons -->
+        <div id="receipt-btn-row" class="receipt-btn-row">
+          <label class="receipt-action-btn camera-btn">
+            <input type="file" id="receipt-camera" accept="image/*" capture="environment" onchange="handleFile(this)" style="display:none;">
+            <div class="receipt-action-icon">📷</div>
+            <div class="receipt-action-title">Take Photo</div>
+            <div class="receipt-action-sub">Use camera</div>
+          </label>
+          <label class="receipt-action-btn gallery-btn">
+            <input type="file" id="receipt-gallery" accept="image/*" onchange="handleFile(this)" style="display:none;">
+            <div class="receipt-action-icon">🖼️</div>
+            <div class="receipt-action-title">Upload</div>
+            <div class="receipt-action-sub">From gallery</div>
+          </label>
+        </div>
       </div>
       <div id="ocr-status-box"></div>
     </div>
@@ -559,11 +589,21 @@ textarea{resize:none;font-size:11.5px;font-family:monospace;min-height:72px;line
 
     <div class="card">
       <div class="card-label">Upload QRIS Image</div>
-      <div class="qx-drop" id="qx-drop-zone">
-        <input type="file" id="qx-file" accept="image/*" onchange="qxHandleFile(this)">
-        <div style="font-size:40px;margin-bottom:10px;">🔳</div>
-        <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:16px;margin-bottom:3px;">Drop or tap to upload</div>
-        <div style="font-size:12px;color:var(--muted);">Any QRIS image — screenshot, photo, PDF export</div>
+      <div id="qx-upload-zone" class="upload-zone-wrapper">
+        <div class="receipt-btn-row">
+          <label class="receipt-action-btn camera-btn">
+            <input type="file" id="qx-file" accept="image/*" capture="environment" onchange="qxHandleFile(this)" style="display:none;">
+            <div class="receipt-action-icon">📷</div>
+            <div class="receipt-action-title">Take Photo</div>
+            <div class="receipt-action-sub">Use camera</div>
+          </label>
+          <label class="receipt-action-btn gallery-btn">
+            <input type="file" accept="image/*" onchange="qxHandleFile(this)" style="display:none;">
+            <div class="receipt-action-icon">🖼️</div>
+            <div class="receipt-action-title">Upload</div>
+            <div class="receipt-action-sub">From gallery</div>
+          </label>
+        </div>
       </div>
       <div id="qx-status-box"></div>
     </div>
@@ -747,12 +787,22 @@ async function qxHandleFile(input) {
   const reader = new FileReader();
   reader.onload = async(e) => {
     const imgSrc = e.target.result, b64 = imgSrc.split(',')[1];
-    // Show preview
-    const zone = document.getElementById('qx-drop-zone');
-    zone.innerHTML = `<img src="${imgSrc}" style="width:100%;border-radius:12px;max-height:220px;object-fit:contain;margin-bottom:8px;"><div style="font-size:12px;color:var(--muted);">Tap to change</div>`;
-    const ni=document.createElement('input');ni.type='file';ni.accept='image/*';
-    ni.style.cssText='position:absolute;inset:0;opacity:0;width:100%;height:100%;cursor:pointer;';
-    ni.onchange=function(){qxHandleFile(this);};zone.appendChild(ni);
+    // Show preview with retake/change buttons
+    const zone = document.getElementById('qx-upload-zone');
+    zone.innerHTML = `
+      <div class="receipt-preview-wrap">
+        <img src="${imgSrc}" alt="QRIS" style="max-height:220px;object-fit:contain;">
+        <div class="receipt-change-btn">
+          <label class="cam-lbl">
+            <input type="file" accept="image/*" capture="environment" onchange="qxHandleFile(this)" style="display:none;">
+            📷 Retake
+          </label>
+          <label class="gal-lbl">
+            <input type="file" accept="image/*" onchange="qxHandleFile(this)" style="display:none;">
+            🖼️ Change
+          </label>
+        </div>
+      </div>`;
 
     showQxStatus('scanning','🔍 Decoding QR code…');
     document.getElementById('qx-result-panel').style.display='none';
@@ -972,7 +1022,7 @@ async function handleQrisImage(input){
 function decodeQRWithJsQR(imgSrc){return new Promise((resolve)=>{const img=new Image();img.onload=()=>{for(const size of[img.width,800,1200,600]){const scale=size/Math.max(img.width,img.height);const w=Math.round(img.width*scale),h=Math.round(img.height*scale);const cv=document.createElement('canvas');cv.width=w;cv.height=h;const ctx=cv.getContext('2d');ctx.imageSmoothingEnabled=false;ctx.drawImage(img,0,0,w,h);const code=jsQR(ctx.getImageData(0,0,w,h).data,w,h,{inversionAttempts:'attemptBoth'});if(code?.data){resolve(code.data.trim());return;}}const cv2=document.createElement('canvas');cv2.width=img.width;cv2.height=img.height;const ctx2=cv2.getContext('2d');ctx2.filter='contrast(150%) grayscale(100%)';ctx2.drawImage(img,0,0);const code2=jsQR(ctx2.getImageData(0,0,img.width,img.height).data,img.width,img.height,{inversionAttempts:'attemptBoth'});resolve(code2?code2.data.trim():null);};img.onerror=()=>resolve(null);img.src=imgSrc;});}
 function setQrisString(str){document.getElementById('qris-input').value=str;validateQRIS();}
 function showQrisScanStatus(type,msg){const sp=type==='scanning'?'<div class="ocr-spinner"></div>':'';document.getElementById('qris-scan-status-box').innerHTML=`<div class="qris-scan-status ${type}">${sp}<span>${msg}</span></div>`;}
-async function extractQrisFromImageAI(b64,mime){const resp=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':CONFIG.ANTHROPIC_API_KEY,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:500,messages:[{role:'user',content:[{type:'image',source:{type:'base64',media_type:mime,data:b64}},{type:'text',text:'Decode this QRIS QR code. Return ONLY the raw data string starting with "000201". No explanation. If cannot decode, return CANNOT_READ'}]}]})});const data=await resp.json();if(data.error)throw new Error(data.error.message);const text=(data.content||[]).map(b=>b.text||'').join('').trim().replace(/\s+/g,'');return(text==='CANNOT_READ'||!text)?null:text;}
+async function extractQrisFromImageAI(b64,mime){const resp=await fetch('/api/claude',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:500,messages:[{role:'user',content:[{type:'image',source:{type:'base64',media_type:mime,data:b64}},{type:'text',text:'Decode this QRIS QR code. Return ONLY the raw data string starting with "000201". No explanation. If cannot decode, return CANNOT_READ'}]}]})});const data=await resp.json();if(data.error)throw new Error(data.error.message);const text=(data.content||[]).map(b=>b.text||'').join('').trim().replace(/\s+/g,'');return(text==='CANNOT_READ'||!text)?null:text;}
 
 // Receipt OCR
 async function handleFile(input){
@@ -982,13 +1032,22 @@ async function handleFile(input){
   reader.onload=async(e)=>{
     receiptBase64=e.target.result.split(',')[1];
     const imgSrc=e.target.result;
+    // Show preview with retake/change buttons overlay
     const zone=document.getElementById('upload-zone');
-    zone.innerHTML='';zone.style.padding='10px';
-    const img=document.createElement('img');img.src=imgSrc;img.className='preview-img';zone.appendChild(img);
-    const hint=document.createElement('div');hint.style.cssText='font-size:12px;color:var(--muted);text-align:center;';hint.textContent='Tap to change';zone.appendChild(hint);
-    const ni=document.createElement('input');ni.type='file';ni.accept='image/*';ni.capture='environment';
-    ni.style.cssText='position:absolute;inset:0;opacity:0;width:100%;height:100%;cursor:pointer;';
-    ni.onchange=function(){handleFile(this);};zone.appendChild(ni);
+    zone.innerHTML=`
+      <div class="receipt-preview-wrap">
+        <img src="${imgSrc}" alt="Receipt">
+        <div class="receipt-change-btn">
+          <label class="cam-lbl">
+            <input type="file" accept="image/*" capture="environment" onchange="handleFile(this)" style="display:none;">
+            📷 Retake
+          </label>
+          <label class="gal-lbl">
+            <input type="file" accept="image/*" onchange="handleFile(this)" style="display:none;">
+            🖼️ Change
+          </label>
+        </div>
+      </div>`;
     showOcrStatus('scanning','🔍 Reading receipt with AI…');
     try{const result=await callOCR(receiptBase64,receiptMime);showOcrStatus('success',`✓ ${result.items.length} items · ${result.store_name||'Receipt'} · Tax: ${formatTaxStatus(result.tax_status)}`);applyOCR(result);setTimeout(()=>goStep(3),600);}
     catch(err){showOcrStatus('error','⚠ Could not read. Edit manually.');setTimeout(()=>{items=[{name:'',price:0,qty:1,assignedTo:'all'},{name:'',price:0,qty:1,assignedTo:'all'}];renderAll();goStep(3);},1400);}
@@ -997,7 +1056,7 @@ async function handleFile(input){
 }
 function formatTaxStatus(s){return s==='included'?'in prices':s==='excluded'?'separate':'none';}
 function showOcrStatus(type,msg){const sp=type==='scanning'?'<div class="ocr-spinner"></div>':'';document.getElementById('ocr-status-box').innerHTML=`<div class="ocr-status ${type}">${sp}<span>${msg}</span></div>`;}
-async function callOCR(b64,mime){const resp=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':CONFIG.ANTHROPIC_API_KEY,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1500,system:'You are a receipt OCR system. Return ONLY raw JSON.',messages:[{role:'user',content:[{type:'image',source:{type:'base64',media_type:mime,data:b64}},{type:'text',text:`Analyze receipt, return JSON: {store_name,items:[{name,price}],subtotal,discount,tax_amount,tax_rate,total,tax_status("included"|"excluded"|"none"),tax_note}. Prices plain numbers. Return ONLY JSON starting with {`}]}]})});const data=await resp.json();if(data.error)throw new Error(data.error.message);const text=(data.content||[]).map(b=>b.text||'').join('');return JSON.parse(text.replace(/```json|```/g,'').trim());}
+async function callOCR(b64,mime){const resp=await fetch('/api/claude',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1500,system:'You are a receipt OCR system. Return ONLY raw JSON.',messages:[{role:'user',content:[{type:'image',source:{type:'base64',media_type:mime,data:b64}},{type:'text',text:`Analyze receipt, return JSON: {store_name,items:[{name,price}],subtotal,discount,tax_amount,tax_rate,total,tax_status("included"|"excluded"|"none"),tax_note}. Prices plain numbers. Return ONLY JSON starting with {`}]}]})});const data=await resp.json();if(data.error)throw new Error(data.error.message);const text=(data.content||[]).map(b=>b.text||'').join('');return JSON.parse(text.replace(/```json|```/g,'').trim());}
 
 function applyOCR(r){
   items=(r.items||[]).filter(i=>i.price>0||i.name).map(i=>({name:i.name||'',price:parseFloat(i.price)||0,qty:1,assignedTo:'all'}));
