@@ -1,0 +1,11 @@
+# API key files — never push these
+config.js
+.env
+.env.local
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
